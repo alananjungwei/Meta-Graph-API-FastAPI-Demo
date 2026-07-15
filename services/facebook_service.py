@@ -1,4 +1,4 @@
-#import os
+
 import requests
 from urllib.parse import urlencode
 from services.config import (
@@ -9,9 +9,7 @@ from services.config import (
     PAGE_ID,
     ACCESS_TOKEN
 )
-#from dotenv import load_dotenv
 
-#ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
 
 def get_login_url():
     """
@@ -80,6 +78,31 @@ def get_page():
         f"{GRAPH_BASE_URL}/{PAGE_ID}",
         params={
             "fields": "id,name",
+            "access_token": ACCESS_TOKEN,
+        },
+    )
+
+    return response.json()
+
+def create_post(message: str):
+
+    response = requests.post(
+        f"{GRAPH_BASE_URL}/{PAGE_ID}/feed",
+        data={
+            "message": message,
+            "access_token": ACCESS_TOKEN,
+        },
+    )
+
+    return response.json()
+
+
+def get_posts():
+
+    response = requests.get(
+        f"{GRAPH_BASE_URL}/{PAGE_ID}/posts",
+        params={
+            "fields": "id,message,created_time",
             "access_token": ACCESS_TOKEN,
         },
     )

@@ -1,10 +1,16 @@
 from fastapi import APIRouter
+from pydantic import BaseModel
+class PostRequest(BaseModel):
+    message: str
+
 
 from services.graph_api import get_app_info
 from services.facebook_service import (
     get_me,
     get_pages,
-    get_page
+    get_page,
+    create_post,
+    get_posts,
 )
 
 router = APIRouter(
@@ -34,3 +40,12 @@ def pages():
 @router.get("/page")
 def page():
     return get_page()
+
+
+@router.post("/post")
+def post_to_page(request: PostRequest):
+    return create_post(request.message)
+
+@router.get("/posts")
+def posts():
+    return get_posts()
