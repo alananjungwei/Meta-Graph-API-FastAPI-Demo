@@ -17,6 +17,7 @@ META_APP_SECRET = os.getenv("META_APP_SECRET")
 ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
 
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # -----------------------------
 # Current Test Facebook Page
 # -----------------------------
@@ -31,5 +32,8 @@ REDIRECT_URI = os.getenv("REDIRECT_URI")
 # -----------------------------
 # Graph API
 # -----------------------------
-GRAPH_API_VERSION = "v25.0"
+GRAPH_API_VERSION = os.getenv(
+    "GRAPH_API_VERSION",
+    "v25.0",
+)
 GRAPH_BASE_URL = f"https://graph.facebook.com/{GRAPH_API_VERSION}"

@@ -132,3 +132,27 @@ def reply_to_comment(comment_id: str, message: str):
     )
 
     return response.json()
+
+def send_message(recipient_id: str, message: str):
+
+    response = requests.post(
+        f"{GRAPH_BASE_URL}/{PAGE_ID}/messages",
+        params={
+            "access_token": ACCESS_TOKEN,
+        },
+        json={
+            "recipient": {
+                "id": recipient_id
+            },
+            "message": {
+                "text": message
+            }
+        }
+    )
+
+    print("Status:", response.status_code)
+    print("Headers:", response.headers)
+    print("Body:", response.text)
+    print(ACCESS_TOKEN[:25])
+
+    return response.json()
