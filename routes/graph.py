@@ -3,14 +3,19 @@ from pydantic import BaseModel
 class PostRequest(BaseModel):
     message: str
 
+class ReplyRequest(BaseModel):
+    message: str
+
 
 from services.graph_api import get_app_info
 from services.facebook_service import (
     get_me,
     get_pages,
     get_page,
-    create_post,
     get_posts,
+    create_post,
+    get_comments,
+    reply_to_comment
 )
 
 router = APIRouter(
@@ -49,3 +54,14 @@ def post_to_page(request: PostRequest):
 @router.get("/posts")
 def posts():
     return get_posts()
+
+@router.get("/comments/{post_id}")
+def comments(post_id: str):
+    return get_comments(post_id)
+
+@router.post("/comment/{comment_id}/reply")
+def reply(comment_id: str, request: ReplyRequest):
+    return reply_to_comment(
+        comment_id,
+        request.message,
+    )

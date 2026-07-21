@@ -108,3 +108,27 @@ def get_posts():
     )
 
     return response.json()
+
+def get_comments(post_id: str):
+
+    response = requests.get(
+        f"{GRAPH_BASE_URL}/{post_id}/comments",
+        params={
+            "fields": "id,message,from,created_time",
+            "access_token": ACCESS_TOKEN,
+        },
+    )
+
+    return response.json()
+
+def reply_to_comment(comment_id: str, message: str):
+
+    response = requests.post(
+        f"{GRAPH_BASE_URL}/{comment_id}/comments",
+        data={
+            "message": message,
+            "access_token": ACCESS_TOKEN,
+        },
+    )
+
+    return response.json()
