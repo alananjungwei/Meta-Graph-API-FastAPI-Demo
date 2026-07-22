@@ -7,7 +7,8 @@ from services.config import (
     REDIRECT_URI,
     GRAPH_BASE_URL,
     PAGE_ID,
-    ACCESS_TOKEN
+    ACCESS_TOKEN,
+    CONFIG_ID
 )
 
 
@@ -17,8 +18,8 @@ def get_login_url():
     """
     params = {
         "client_id": META_APP_ID,
+        "config_id": CONFIG_ID,
         "redirect_uri": REDIRECT_URI,
-        "scope": "public_profile",
         "response_type": "code",
         "state": "demo123",
     }
@@ -31,9 +32,14 @@ def get_login_url():
 
 def handle_callback(code: str, state: str):
     """
-    Exchange the authorization code for an access token.
+    Exchange the authorization code for a short-lived token,
+    then exchange it for a long-lived token,
+    then retrieve the Page access token.
     """
 
+    # --------------------------------------------------
+    # Step 1: Exchange authorization code for short-lived token
+    # --------------------------------------------------
     response = requests.get(
         "https://graph.facebook.com/v25.0/oauth/access_token",
         params={
@@ -44,9 +50,70 @@ def handle_callback(code: str, state: str):
         },
     )
 
+    short_data = response.json()
+
+    print("========== SHORT-LIVED TOKEN ==========")
+    print(short_data)
+
+    if "access_token" not in short_data:
+        return {
+            "error": "Failed to obtain short-lived token.",
+            "response": short_data,
+        }
+
+    short_token = short_data["access_token"]
+
+    print("Short-lived token acquired!")
+    print(short_token[:30])
+
+    # --------------------------------------------------
+    # Step 2: Exchange for long-lived token
+    # --------------------------------------------------
+    print("Exchanging for long-lived token...")
+
+    long_response = requests.get(
+        "https://graph.facebook.com/v25.0/oauth/access_token",
+        params={
+            "grant_type": "fb_exchange_token",
+            "client_id": META_APP_ID,
+            "client_secret": META_APP_SECRET,
+            "fb_exchange_token": short_token,
+        },
+    )
+
+    long_data = long_response.json()
+
+    print("========== LONG-LIVED TOKEN ==========")
+    print(long_data)
+
+    if "access_token" not in long_data:
+        return {
+            "error": "Failed to obtain long-lived token.",
+            "response": long_data,
+        }
+
+    long_token = long_data["access_token"]
+
+    # --------------------------------------------------
+    # Step 3: Get Page information
+    # --------------------------------------------------
+    pages_response = requests.get(
+        "https://graph.facebook.com/v25.0/me/accounts",
+        params={
+            "access_token": long_token,
+        },
+    )
+
+    page_data = pages_response.json()
+
+    print("========== PAGE INFO ==========")
+    print(page_data)
+
     return {
         "state": state,
-        "facebook_response": response.json(),
+        "short_lived_token": short_data,
+        "long_lived_token": long_data,
+        "page_info": page_data,
     }
 
 def get_me():

@@ -18,6 +18,7 @@ ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+CONFIG_ID = os.getenv("CONFIG_ID")
 # -----------------------------
 # Current Test Facebook Page
 # -----------------------------
