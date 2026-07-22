@@ -30,6 +30,30 @@ def get_login_url():
     )
 
 
+def update_env(key: str, value: str):
+    """
+    Update a value inside the .env file.
+    """
+
+    with open(".env", "r") as f:
+        lines = f.readlines()
+
+    with open(".env", "w") as f:
+
+        found = False
+
+        for line in lines:
+
+            if line.startswith(f"{key}="):
+                f.write(f"{key}={value}\n")
+                found = True
+            else:
+                f.write(line)
+
+        if not found:
+            f.write(f"{key}={value}\n")
+
+
 def handle_callback(code: str, state: str):
     """
     Exchange the authorization code for a short-lived token,
@@ -109,11 +133,22 @@ def handle_callback(code: str, state: str):
     print("========== PAGE INFO ==========")
     print(page_data)
 
+    page = page_data["data"][0]
+
+    page_token = page["access_token"]
+
+    update_env("ACCESS_TOKEN", page_token)
+    update_env("PAGE_ID", page["id"])
+
+    print("✅ Page Access Token saved to .env")
+
+
     return {
+        "status": "success",
         "state": state,
-        "short_lived_token": short_data,
-        "long_lived_token": long_data,
-        "page_info": page_data,
+        "page_name": page["name"],
+        "page_id": page["id"],
+        "page_token_received": True,
     }
 
 def get_me():

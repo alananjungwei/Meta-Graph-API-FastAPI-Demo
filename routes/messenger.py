@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from services.config import VERIFY_TOKEN
 from services.facebook_service import send_message
 from services.ai_service import generate_reply
+from services.intent_service import detect_intent
 
 router = APIRouter(
     prefix="/messenger",
@@ -51,10 +52,12 @@ async def webhook(request: Request):
 
                 print(f"Sender: {sender_id}")
                 print(f"Message: {text}")
+                intent = detect_intent(text)
+                print(f"Detected Intent: {intent}")
 
                 # Generate AI reply
                 try:
-                    reply = generate_reply(text)
+                    reply = generate_reply(sender_id, text)
                 except Exception as e:
                     print(f"OpenAI Error: {e}")
                     reply = "Sorry, something went wrong while generating a reply."
