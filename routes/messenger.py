@@ -1,13 +1,16 @@
-from fastapi import APIRouter, HTTPException, Query, Request 
+from fastapi import APIRouter, HTTPException, Query, Request
+
 from services.config import VERIFY_TOKEN
 from services.facebook_service import send_message
 from services.ai_service import generate_reply
 from services.intent_service import detect_intent
+from services.sentiment_service import detect_sentiment
 
 router = APIRouter(
     prefix="/messenger",
     tags=["Messenger"],
 )
+
 
 @router.get("/webhook")
 def verify(
@@ -20,6 +23,7 @@ def verify(
 
     raise HTTPException(status_code=403, detail="Verification failed")
 
+
 @router.post("/webhook")
 async def webhook(request: Request):
 
@@ -29,50 +33,68 @@ async def webhook(request: Request):
     print(body)
     print("=======================================")
 
-    if body.get("object") == "page":
+    if body.get("object") != "page":
+        return {"status": "ignored"}
 
-        for entry in body["entry"]:
+    for entry in body["entry"]:
 
-            for event in entry["messaging"]:
+        for event in entry["messaging"]:
 
-                # Ignore events that aren't messages
-                if "message" not in event:
-                    continue
+            # Ignore events that aren't messages
+            if "message" not in event:
+                continue
 
-                # Ignore messages sent by the Page itself
-                if event["message"].get("is_echo"):
-                    continue
+            # Ignore messages sent by the Page itself
+            if event["message"].get("is_echo"):
+                continue
 
-                # Ignore non-text messages (images, stickers, etc.)
-                text = event["message"].get("text")
-                if not text:
-                    continue
+            # Ignore images, stickers, etc.
+            text = event["message"].get("text")
+            if not text:
+                continue
 
-                sender_id = event["sender"]["id"]
+            sender_id = event["sender"]["id"]
 
-                print(f"Sender: {sender_id}")
-                print(f"Message: {text}")
-                intent = detect_intent(text)
-                print(f"Detected Intent: {intent}")
+            print(f"Sender: {sender_id}")
+            print(f"Message: {text}")
 
-                # Generate AI reply
-                try:
-                    reply = generate_reply(sender_id, text)
-                except Exception as e:
-                    print(f"OpenAI Error: {e}")
-                    reply = "Sorry, something went wrong while generating a reply."
+            # ----------------------------------------
+            # NLP Pipeline
+            # ----------------------------------------
 
-                # Safety guard: never send an empty message
-                if not reply or not reply.strip():
-                    reply = "Sorry, I couldn't generate a response."
+            intent = detect_intent(text)
+            sentiment = detect_sentiment(text)
 
-                print(f"AI Reply: {repr(reply)}")
+            print(f"Detected Intent: {intent}")
+            print(f"Detected Sentiment: {sentiment}")
 
-                result = send_message(
-                    sender_id,
-                    reply
+            # ----------------------------------------
+            # Generate AI response
+            # ----------------------------------------
+
+            try:
+                reply = generate_reply(
+                    sender_id=sender_id,
+                    text=text,
+                    intent=intent,
+                    sentiment=sentiment,
                 )
 
-                print(result)
+            except Exception as e:
+                print(f"OpenAI Error: {e}")
+                reply = "Sorry, something went wrong while generating a reply."
+
+            if not reply or not reply.strip():
+                reply = "Sorry, I couldn't generate a response."
+
+            print(f"AI Reply: {repr(reply)}")
+
+            # ----------------------------------------
+            # Send response back to Messenger
+            # ----------------------------------------
+
+            result = send_message(sender_id, reply)
+
+            print(result)
 
     return {"status": "ok"}
