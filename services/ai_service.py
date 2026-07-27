@@ -59,25 +59,39 @@ def generate_reply(
 
     response = client.responses.create(
         model="gpt-5-mini",
+        reasoning={
+            "effort": "minimal",
+        },
         input=[
             assistant_prompt,
             conversation_context,
             *history,
         ],
-        max_output_tokens=500,
+        max_output_tokens=1000,
     )
 
-    print("========== OPENAI RESPONSE ==========")
-    print(response)
-    print("=====================================")
+    print("========== OPENAI API ==========")
+    print(f"Status: {response.status}")
+
+    reasoning = getattr(response, "reasoning", None)
+
+    print(
+        f"Reasoning effort: "
+        f"{reasoning.effort if reasoning else 'N/A'}"
+    )
+    print(f"Output text: {repr(response.output_text)}")
+
+    usage = getattr(response, "usage", None)
+    if usage:
+        print(f"Input tokens: {usage.input_tokens}")
+        print(f"Output tokens: {usage.output_tokens}")
+        print(f"Total tokens: {usage.total_tokens}")
+    print("================================")
 
     reply = response.output_text
 
     if not reply or not reply.strip():
         reply = "Sorry, I couldn't generate a response."
-
-    print("OUTPUT TEXT:")
-    print(repr(reply))
 
     history.append(
         {

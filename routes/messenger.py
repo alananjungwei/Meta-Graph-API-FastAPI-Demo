@@ -5,6 +5,7 @@ from services.facebook_service import send_message
 from services.ai_service import generate_reply
 from services.intent_service import detect_intent
 from services.sentiment_service import detect_sentiment
+from services.database_service import save_conversation
 
 router = APIRouter(
     prefix="/messenger",
@@ -40,15 +41,16 @@ async def webhook(request: Request):
 
         for event in entry["messaging"]:
 
-            # Ignore events that aren't messages
+            # ----------------------------------------
+            # Ignore unsupported events
+            # ----------------------------------------
+
             if "message" not in event:
                 continue
 
-            # Ignore messages sent by the Page itself
             if event["message"].get("is_echo"):
                 continue
 
-            # Ignore images, stickers, etc.
             text = event["message"].get("text")
             if not text:
                 continue
@@ -65,8 +67,10 @@ async def webhook(request: Request):
             intent = detect_intent(text)
             sentiment = detect_sentiment(text)
 
-            print(f"Detected Intent: {intent}")
-            print(f"Detected Sentiment: {sentiment}")
+            print("========== MESSAGE ANALYSIS ==========")
+            print(f"Intent: {intent}")
+            print(f"Sentiment: {sentiment}")
+            print("======================================")
 
             # ----------------------------------------
             # Generate AI response
@@ -90,11 +94,26 @@ async def webhook(request: Request):
             print(f"AI Reply: {repr(reply)}")
 
             # ----------------------------------------
-            # Send response back to Messenger
+            # Send reply to Messenger
             # ----------------------------------------
 
-            result = send_message(sender_id, reply)
+            try:
+                result = send_message(sender_id, reply)
+                print(result)
 
-            print(result)
+            except Exception as e:
+                print(f"Messenger Error: {e}")
+
+            # ----------------------------------------
+            # Store conversation
+            # ----------------------------------------
+
+            save_conversation(
+                sender_id=sender_id,
+                message=text,
+                intent=intent,
+                sentiment=sentiment,
+                reply=reply,
+            )
 
     return {"status": "ok"}
