@@ -4,6 +4,8 @@ from services.analytics_service import (
     get_total_messages,
     get_sentiment_distribution,
     get_intent_distribution,
+    get_unique_customers,
+    get_recent_conversations,
 )
 
 router = APIRouter(
@@ -29,3 +31,15 @@ def sentiment_distribution():
 def intent_distribution():
 
     return get_intent_distribution()
+
+@router.get("/users")
+def unique_customers():
+
+    return {
+        "unique_customers": get_unique_customers()
+    }
+
+@router.get("/recent")
+def recent_conversations():
+
+    return get_recent_conversations()
