@@ -1,11 +1,19 @@
 import streamlit as st
-import pandas as pd
+
+from streamlit_autorefresh import st_autorefresh
 
 from api import (
     get_total_messages,
     get_unique_customers,
     get_sentiment_distribution,
     get_intent_distribution,
+    get_recent_conversations,
+)
+
+from components import (
+    render_kpis,
+    render_charts,
+    render_recent_conversations,
 )
 
 # -----------------------------
@@ -23,7 +31,7 @@ st.set_page_config(
 st.title("🤖 AI Customer Support Dashboard")
 
 # -----------------------------
-# Fetch Data
+# Fetch Dashboard Metrics
 # -----------------------------
 messages = get_total_messages()
 customers = get_unique_customers()
@@ -31,55 +39,71 @@ sentiment = get_sentiment_distribution()
 intents = get_intent_distribution()
 
 # -----------------------------
-# KPI Cards
+# Sidebar
 # -----------------------------
-col1, col2 = st.columns(2)
+with st.sidebar:
 
-with col1:
-    st.metric(
-        label="📨 Messages",
-        value=messages["total_messages"]
+    st.header("⚙️ Dashboard Settings")
+
+    auto_refresh = st.checkbox(
+        "Auto Refresh",
+        value=True
     )
 
-with col2:
-    st.metric(
-        label="👥 Customers",
-        value=customers["unique_customers"]
+    conversation_limit = st.slider(
+        "Recent Conversations",
+        min_value=5,
+        max_value=50,
+        value=20
+    )
+
+    search = st.text_input(
+        "🔍 Search Messages"
+    )
+
+    intent_filter = st.selectbox(
+        "🎯 Filter by Intent",
+        ["All"] + sorted(intents.keys())
     )
 
 # -----------------------------
-# Sentiment & Intent Distribution
+# Auto Refresh
 # -----------------------------
-st.divider()
-
-col1, col2 = st.columns(2)
-
-with col1:
-
-    st.subheader("😊 Sentiment Distribution")
-
-    sentiment_df = pd.DataFrame(
-        sentiment.items(),
-        columns=["Sentiment", "Count"]
+if auto_refresh:
+    st_autorefresh(
+        interval=5000,
+        key="dashboard_refresh"
     )
 
-    st.bar_chart(
-        sentiment_df,
-        x="Sentiment",
-        y="Count"
-    )
+# -----------------------------
+# Fetch Conversations
+# -----------------------------
+recent = get_recent_conversations(
+    conversation_limit
+)
 
-with col2:
+# -----------------------------
+# Apply Filters
+# -----------------------------
+if search:
+    recent = [
+        row
+        for row in recent
+        if search.lower() in row["message"].lower()
+    ]
 
-    st.subheader("🧠 Intent Distribution")
+if intent_filter != "All":
+    recent = [
+        row
+        for row in recent
+        if row["intent"] == intent_filter
+    ]
 
-    intent_df = pd.DataFrame(
-        intents.items(),
-        columns=["Intent", "Count"]
-    )
+# -----------------------------
+# Render Components
+# -----------------------------
+render_kpis(messages, customers)
 
-    st.bar_chart(
-        intent_df,
-        x="Intent",
-        y="Count"
-    )
+render_charts(sentiment, intents)
+
+render_recent_conversations(recent)

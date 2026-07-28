@@ -40,6 +40,6 @@ def unique_customers():
     }
 
 @router.get("/recent")
-def recent_conversations():
+def recent_conversations(limit: int = 20):
 
-    return get_recent_conversations()
+    return get_recent_conversations(limit)
