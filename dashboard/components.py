@@ -95,9 +95,18 @@ def render_recent_conversations(recent):
         ]
     ]
 
+    csv = recent_df.to_csv(index=False)
+
     st.divider()
 
     st.subheader("💬 Recent Conversations")
+
+    st.download_button(
+        label="📥 Export Conversations",
+        data=csv,
+        file_name="conversations.csv",
+        mime="text/csv"
+    )
 
     st.dataframe(
         recent_df,

@@ -1,7 +1,6 @@
 import streamlit as st
-
+from utils import filter_conversations
 from streamlit_autorefresh import st_autorefresh
-
 from api import (
     get_total_messages,
     get_unique_customers,
@@ -66,6 +65,11 @@ with st.sidebar:
         ["All"] + sorted(intents.keys())
     )
 
+    sentiment_filter = st.selectbox(
+        "😊 Filter by Sentiment",
+        ["All"] + sorted(sentiment.keys())
+    )   
+
 # -----------------------------
 # Auto Refresh
 # -----------------------------
@@ -85,20 +89,13 @@ recent = get_recent_conversations(
 # -----------------------------
 # Apply Filters
 # -----------------------------
-if search:
-    recent = [
-        row
-        for row in recent
-        if search.lower() in row["message"].lower()
-    ]
 
-if intent_filter != "All":
-    recent = [
-        row
-        for row in recent
-        if row["intent"] == intent_filter
-    ]
-
+recent = filter_conversations(
+    recent,
+    search=search,
+    intent=intent_filter,
+    sentiment=sentiment_filter,
+)
 # -----------------------------
 # Render Components
 # -----------------------------
