@@ -26,6 +26,7 @@ def generate_reply(
 
     chunks = retrieve(text)
 
+
     system_prompt = build_prompt(chunks)
 
     response = client.chat.completions.create(

@@ -19,7 +19,7 @@ collection = chroma_client.get_collection(
 )
 
 
-def retrieve(query: str, n_results: int = 3):
+def retrieve(query: str, n_results: int = 8):
     """
     Retrieve the most relevant chunks for a user query.
 
