@@ -1,5 +1,5 @@
-from loader import load_documents
-from chunker import chunk_documents
+from rag.loader import load_documents
+from rag.chunker import chunk_documents
 
 documents = load_documents()
 

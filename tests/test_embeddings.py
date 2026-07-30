@@ -1,6 +1,6 @@
-from loader import load_documents
-from chunker import chunk_documents
-from embeddings import generate_embeddings
+from rag.loader import load_documents
+from rag.chunker import chunk_documents
+from rag.embeddings import generate_embeddings
 
 documents = load_documents()
 
