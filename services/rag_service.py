@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from rag.prompt_builder import build_prompt
 from rag.retriever import retrieve
 
 load_dotenv()
@@ -12,27 +13,20 @@ client = OpenAI(
 )
 
 
-def answer_question(user_question: str):
+def generate_reply(
+    sender_id: str,
+    text: str,
+    intent: str,
+    sentiment: str,
+) -> str:
+    """
+    Retrieve relevant knowledge base chunks, build a grounded prompt,
+    and generate an AI response.
+    """
 
-    chunks = retrieve(user_question)
+    chunks = retrieve(text)
 
-    context = "\n\n".join(
-        chunk["text"]
-        for chunk in chunks
-    )
-
-    system_prompt = f"""
-You are NovaTech Electronics' AI customer support assistant.
-
-Answer ONLY using the provided company information.
-
-If the information is unavailable,
-say you cannot find it in the knowledge base.
-
-Company Information:
-
-{context}
-"""
+    system_prompt = build_prompt(chunks)
 
     response = client.chat.completions.create(
         model="gpt-5-mini",
@@ -43,7 +37,7 @@ Company Information:
             },
             {
                 "role": "user",
-                "content": user_question,
+                "content": text,
             },
         ],
     )

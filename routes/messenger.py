@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from services.config import VERIFY_TOKEN
 from services.facebook_service import send_message
-from services.ai_service import generate_reply
+from services.rag_service import generate_reply
 from services.intent_service import detect_intent
 from services.sentiment_service import detect_sentiment
 from services.database_service import save_conversation
