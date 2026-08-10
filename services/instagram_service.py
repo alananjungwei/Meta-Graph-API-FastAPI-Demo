@@ -93,31 +93,42 @@ def get_account():
 # ==================================================
 
 def send_message(recipient_id: str, message: str):
+    max_length = 1000
 
-    url = f"{INSTAGRAM_GRAPH_BASE_URL}/{INSTAGRAM_USER_ID}/messages"
+    messages = [
+        message[i:i + max_length]
+        for i in range(0, len(message), max_length)
+    ]
 
-    payload = {
-        "recipient": {
-            "id": recipient_id
-        },
-        "message": {
-            "text": message
+    results = []
+
+    for msg in messages:
+        url = f"{INSTAGRAM_GRAPH_BASE_URL}/{INSTAGRAM_USER_ID}/messages"
+
+        payload = {
+            "recipient": {
+                "id": recipient_id
+            },
+            "message": {
+                "text": msg
+            }
         }
-    }
 
-    response = requests.post(
-        url,
-        json=payload,
-        params={
-            "access_token": INSTAGRAM_ACCESS_TOKEN
-        },
-    )
+        response = requests.post(
+            url,
+            json=payload,
+            params={
+                "access_token": INSTAGRAM_ACCESS_TOKEN
+            },
+        )
 
-    print("\n========== INSTAGRAM SEND MESSAGE ==========")
-    print("URL:", url)
-    print("Recipient ID:", recipient_id)
-    print("Status:", response.status_code)
-    print("Response:", response.text)
-    print("============================================\n")
+        print("\n========== INSTAGRAM SEND MESSAGE ==========")
+        print("Recipient ID:", recipient_id)
+        print("Message length:", len(msg))
+        print("Status:", response.status_code)
+        print("Response:", response.text)
+        print("============================================\n")
 
-    return response.json()
+        results.append(response.json())
+
+    return results

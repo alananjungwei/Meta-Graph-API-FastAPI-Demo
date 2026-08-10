@@ -16,6 +16,12 @@ from services.instagram_service import (
     send_message,
 )
 
+
+from services.rag_service import generate_reply
+from services.intent_service import detect_intent
+from services.sentiment_service import detect_sentiment
+from services.database_service import save_conversation
+
 router = APIRouter(
     prefix="/instagram",
     tags=["Instagram"],
@@ -147,18 +153,27 @@ async def webhook(request: Request):
 
         for event in entry.get("messaging", []):
 
+            # ------------------------------------------
             # Ignore events that are not messages
+            # ------------------------------------------
+
             if "message" not in event:
                 continue
 
-            # Ignore messages sent by our own Instagram account
+            # ------------------------------------------
+            # Ignore messages sent by our own account
+            # ------------------------------------------
+
             if event["message"].get("is_echo"):
                 continue
 
             sender_id = event["sender"]["id"]
             text = event["message"].get("text", "")
 
+            # ------------------------------------------
             # Ignore messages without text
+            # ------------------------------------------
+
             if not text:
                 continue
 
@@ -166,12 +181,74 @@ async def webhook(request: Request):
             print("Message:", text)
 
             # ------------------------------------------
-            # TEMPORARY TEST RESPONSE
+            # NLP Pipeline
             # ------------------------------------------
 
-            send_message(
-                recipient_id=sender_id,
-                message="Hello! Instagram V2 is working 🤖",
+            intent = detect_intent(text)
+            sentiment = detect_sentiment(text)
+
+            print("========== MESSAGE ANALYSIS ==========")
+            print("Intent:", intent)
+            print("Sentiment:", sentiment)
+            print("======================================")
+
+            # ------------------------------------------
+            # Generate AI response
+            # ------------------------------------------
+
+            try:
+
+                reply = generate_reply(
+                    sender_id=sender_id,
+                    text=text,
+                    intent=intent,
+                    sentiment=sentiment,
+                )
+
+            except Exception as e:
+
+                print(f"OpenAI Error: {e}")
+
+                reply = (
+                    "Sorry, something went wrong "
+                    "while generating a reply."
+                )
+
+            if not reply or not reply.strip():
+
+                reply = (
+                    "Sorry, I couldn't generate a response."
+                )
+
+            print("AI Reply:", repr(reply))
+
+            # ------------------------------------------
+            # Send reply to Instagram
+            # ------------------------------------------
+
+            try:
+
+                result = send_message(
+                    recipient_id=sender_id,
+                    message=reply,
+                )
+
+                print(result)
+
+            except Exception as e:
+
+                print(f"Instagram Error: {e}")
+
+            # ------------------------------------------
+            # Store conversation
+            # ------------------------------------------
+
+            save_conversation(
+                sender_id=sender_id,
+                message=text,
+                intent=intent,
+                sentiment=sentiment,
+                reply=reply,
             )
 
     return {"status": "ok"}
