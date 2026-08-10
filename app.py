@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from routes.graph import router as graph_router
 from routes.facebook import router as facebook_router
 from routes import messenger
+from routes import instagram
 from services.database_service import initialize_database
 from routes.analytics import router as analytics_router
 
@@ -17,6 +18,7 @@ app.include_router(graph_router)
 app.include_router(facebook_router)
 app.include_router(messenger.router)
 app.include_router(analytics_router)
+app.include_router(instagram.router)
 
 @app.get("/")
 def root():

@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 from services.config import (
     META_APP_ID,
     META_APP_SECRET,
-    REDIRECT_URI,
+    FACEBOOK_REDIRECT_URI,
     GRAPH_BASE_URL,
     PAGE_ID,
     ACCESS_TOKEN,
@@ -19,7 +19,7 @@ def get_login_url():
     params = {
         "client_id": META_APP_ID,
         "config_id": CONFIG_ID,
-        "redirect_uri": REDIRECT_URI,
+        "redirect_uri": FACEBOOK_REDIRECT_URI,
         "response_type": "code",
         "state": "demo123",
     }
@@ -69,7 +69,7 @@ def handle_callback(code: str, state: str):
         params={
             "client_id": META_APP_ID,
             "client_secret": META_APP_SECRET,
-            "redirect_uri": REDIRECT_URI,
+            "redirect_uri": FACEBOOK_REDIRECT_URI,
             "code": code,
         },
     )
@@ -236,25 +236,48 @@ def reply_to_comment(comment_id: str, message: str):
     return response.json()
 
 def send_message(recipient_id: str, message: str):
+    """
+    Send a Facebook Messenger or Instagram DM reply
+    using Meta's unified messaging endpoint.
+    """
+
+    url = f"{GRAPH_BASE_URL}/{PAGE_ID}/messages"
+
+    payload = {
+        "recipient": {
+            "id": recipient_id
+        },
+        "message": {
+            "text": message
+        }
+    }
 
     response = requests.post(
-        f"{GRAPH_BASE_URL}/{PAGE_ID}/messages",
+        url,
         params={
             "access_token": ACCESS_TOKEN,
         },
-        json={
-            "recipient": {
-                "id": recipient_id
-            },
-            "message": {
-                "text": message
-            }
-        }
+        json=payload,
     )
 
-    print("Status:", response.status_code)
-    print("Headers:", response.headers)
-    print("Body:", response.text)
-    print(ACCESS_TOKEN[:25])
+    # -----------------------------
+    # Debug output
+    # -----------------------------
+    print("\n" + "=" * 80)
+    print("META SEND MESSAGE DEBUG")
+    print("=" * 80)
+    print(f"URL          : {url}")
+    print(f"Recipient ID : {recipient_id}")
+    print(f"Message      : {message}")
+    print(f"Status Code  : {response.status_code}")
 
-    return response.json()
+    try:
+        body = response.json()
+    except Exception:
+        body = response.text
+
+    print("Response:")
+    print(body)
+    print("=" * 80 + "\n")
+
+    return body
