@@ -6,6 +6,7 @@ from services.analytics_service import (
     get_intent_distribution,
     get_unique_customers,
     get_recent_conversations,
+    get_platform_distribution,
 )
 
 router = APIRouter(
@@ -43,3 +44,8 @@ def unique_customers():
 def recent_conversations(limit: int = 20):
 
     return get_recent_conversations(limit)
+
+@router.get("/platforms")
+def platform_distribution():
+
+    return get_platform_distribution()

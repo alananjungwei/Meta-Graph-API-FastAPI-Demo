@@ -114,6 +114,7 @@ async def webhook(request: Request):
                 intent=intent,
                 sentiment=sentiment,
                 reply=reply,
+                platform="messenger",
             )
 
     return {"status": "ok"}

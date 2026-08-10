@@ -249,6 +249,7 @@ async def webhook(request: Request):
                 intent=intent,
                 sentiment=sentiment,
                 reply=reply,
+                platform="instagram",
             )
 
     return {"status": "ok"}

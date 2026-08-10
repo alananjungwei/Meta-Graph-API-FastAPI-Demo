@@ -3,16 +3,21 @@ from datetime import datetime
 
 DATABASE_NAME = "conversations.db"
 
+
+# ==================================================
+# Save Conversation
+# ==================================================
+
 def save_conversation(
     sender_id,
     message,
     intent,
     sentiment,
     reply,
+    platform="unknown",
 ):
 
     conn = get_connection()
-
     cursor = conn.cursor()
 
     cursor.execute(
@@ -24,10 +29,10 @@ def save_conversation(
             message,
             intent,
             sentiment,
-            reply
+            reply,
+            platform
         )
-
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (
             sender_id,
@@ -36,21 +41,34 @@ def save_conversation(
             intent,
             sentiment,
             reply,
+            platform,
         ),
     )
 
     conn.commit()
-
     conn.close()
+
+
+# ==================================================
+# Database Connection
+# ==================================================
 
 def get_connection():
     return sqlite3.connect(DATABASE_NAME)
 
+
+# ==================================================
+# Initialize Database
+# ==================================================
+
 def initialize_database():
 
     conn = get_connection()
-
     cursor = conn.cursor()
+
+    # ----------------------------------------------
+    # Create table for completely new databases
+    # ----------------------------------------------
 
     cursor.execute(
         """
@@ -68,14 +86,45 @@ def initialize_database():
 
             sentiment TEXT,
 
-            reply TEXT
+            reply TEXT,
+
+            platform TEXT DEFAULT 'unknown'
 
         )
         """
     )
 
+    # ----------------------------------------------
+    # Safe migration for existing databases
+    # ----------------------------------------------
+
+    cursor.execute(
+        """
+        PRAGMA table_info(conversations)
+        """
+    )
+
+    columns = [
+        row[1]
+        for row in cursor.fetchall()
+    ]
+
+    if "platform" not in columns:
+
+        cursor.execute(
+            """
+            ALTER TABLE conversations
+            ADD COLUMN platform TEXT DEFAULT 'unknown'
+            """
+        )
+
     conn.commit()
     conn.close()
+
+
+# ==================================================
+# Analytics
+# ==================================================
 
 def get_total_messages():
 
