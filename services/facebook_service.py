@@ -648,10 +648,11 @@ def ensure_facebook_token_valid():
     # --------------------------------------------------
     # Step 1: Check current Page token
     # --------------------------------------------------
-
     status = get_facebook_token_status()
 
-    if status["status"] == "healthy":
+    FORCE_REFRESH_TEST = False
+
+    if status["status"] == "healthy" and not FORCE_REFRESH_TEST:
         print("✅ Facebook Page access token is healthy.")
         return get_current_access_token()
 
@@ -659,7 +660,7 @@ def ensure_facebook_token_valid():
     # Step 2: Token is invalid/expired → refresh
     # --------------------------------------------------
 
-    if status["status"] in ("invalid", "expired"):
+    if FORCE_REFRESH_TEST or status["status"] in ("invalid", "expired"):
         print(
             "⚠️ Facebook Page access token is invalid."
         )
