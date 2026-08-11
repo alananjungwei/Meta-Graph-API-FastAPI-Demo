@@ -37,3 +37,9 @@ def facebook_token_status():
 @router.get("/me")
 def facebook_me():
     return get_me()
+
+@router.get("/refresh-token")
+def facebook_refresh_token():
+    from services.facebook_service import refresh_facebook_user_token
+
+    return refresh_facebook_user_token()
