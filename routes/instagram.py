@@ -14,6 +14,8 @@ from services.instagram_service import (
     exchange_code_for_token,
     get_account,
     send_message,
+    update_env,
+    ensure_instagram_token_valid,
 )
 
 
@@ -49,7 +51,7 @@ def subscribe_webhook():
 
     params = {
         "subscribed_fields": "messages",
-        "access_token": INSTAGRAM_ACCESS_TOKEN,
+        "access_token": ensure_instagram_token_valid(),
     }
 
     response = requests.post(
@@ -80,19 +82,62 @@ def callback(
 ):
 
     if not code:
+
         raise HTTPException(
             status_code=400,
             detail="Missing authorization code",
         )
 
+    # ----------------------------------------------
+    # Exchange authorization code for access token
+    # ----------------------------------------------
+
     token_data = exchange_code_for_token(code)
+
+    # ----------------------------------------------
+    # Check token response
+    # ----------------------------------------------
+
+    if "access_token" not in token_data:
+
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Failed to obtain Instagram access token",
+                "response": token_data,
+            },
+        )
+
+    instagram_access_token = (
+        token_data["access_token"]
+    )
+
+    # ----------------------------------------------
+    # Save token to .env
+    # ----------------------------------------------
+
+    update_env(
+        "INSTAGRAM_ACCESS_TOKEN",
+        instagram_access_token,
+    )
+
+    print(
+        "✅ Instagram access token saved to .env"
+    )
+
+    # ----------------------------------------------
+    # Return success
+    # ----------------------------------------------
 
     return {
         "status": "success",
-        "token_received": "access_token" in token_data,
-        "token_data": token_data,
+        "token_received": True,
+        "state": state,
+        "message": (
+            "Instagram connected successfully. "
+            "Access token saved."
+        ),
     }
-
 
 # ==================================================
 # Test Instagram Account
