@@ -1,5 +1,7 @@
 
 import requests
+import os
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 from services.config import (
     META_APP_ID,
@@ -118,6 +120,26 @@ def handle_callback(code: str, state: str):
 
     long_token = long_data["access_token"]
 
+    expires_in = long_data.get("expires_in")
+
+    expires_at = None
+
+    if expires_in:
+        expires_at = (
+            datetime.now(timezone.utc)
+            + timedelta(seconds=expires_in)
+        ).isoformat()
+
+        update_env(
+            "ACCESS_TOKEN_EXPIRES_AT",
+            expires_at,
+        )
+
+        print(
+            "Facebook user token expires at:",
+            expires_at
+        )
+
     # --------------------------------------------------
     # Step 3: Get Page information
     # --------------------------------------------------
@@ -150,6 +172,59 @@ def handle_callback(code: str, state: str):
         "page_id": page["id"],
         "page_token_received": True,
     }
+
+def get_facebook_token_expiry():
+    """
+    Read the Facebook access token expiration timestamp
+    from the .env file.
+    """
+
+    expires_at = os.getenv("ACCESS_TOKEN_EXPIRES_AT")
+
+    if not expires_at:
+        print(
+            "⚠️ Facebook token expiry unknown. "
+            "Re-authentication may be required."
+        )
+        return None
+
+    try:
+        return datetime.fromisoformat(expires_at)
+    except ValueError:
+        print(
+            "⚠️ Invalid Facebook token expiry timestamp."
+        )
+        return None
+
+
+def ensure_facebook_token_valid():
+    """
+    Check whether the Facebook access token is still valid.
+
+    For now, this only checks and reports the expiry.
+    The actual renewal flow will be added next.
+    """
+
+    expiry = get_facebook_token_expiry()
+
+    if expiry is None:
+        return os.getenv("ACCESS_TOKEN")
+
+    now = datetime.now(timezone.utc)
+    remaining = expiry - now
+
+    print(
+        f"Facebook token remaining: {remaining}"
+    )
+
+    if remaining <= timedelta(days=7):
+        print(
+            "⚠️ Facebook token approaching expiry. "
+            "Re-authentication/renewal required."
+        )
+
+    return os.getenv("ACCESS_TOKEN")
+
 
 def get_me():
 
