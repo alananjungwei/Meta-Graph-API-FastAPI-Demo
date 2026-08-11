@@ -8,8 +8,6 @@ from services.config import (
     META_APP_SECRET,
     FACEBOOK_REDIRECT_URI,
     GRAPH_BASE_URL,
-    PAGE_ID,
-    ACCESS_TOKEN,
     CONFIG_ID
 )
 
@@ -41,7 +39,6 @@ def update_env(key: str, value: str):
         lines = f.readlines()
 
     with open(".env", "w") as f:
-
         found = False
 
         for line in lines:
@@ -55,6 +52,94 @@ def update_env(key: str, value: str):
         if not found:
             f.write(f"{key}={value}\n")
 
+    # Keep the current Python process in sync with .env
+    os.environ[key] = value
+
+def get_current_access_token():
+    """
+    Return the current Facebook Page access token.
+
+    The token may be updated during the Facebook login flow,
+    so we read it from the current process environment instead
+    of using the value imported when the module started.
+    """
+
+    token = os.getenv("ACCESS_TOKEN")
+
+    if not token:
+        raise RuntimeError(
+            "Facebook Page access token is not configured."
+        )
+
+    return token
+
+def get_current_page_id():
+    """
+    Return the current Facebook Page ID.
+
+    The Page ID may be updated during the Facebook login flow,
+    so read it from the current process environment.
+    """
+
+    page_id = os.getenv("PAGE_ID")
+
+    if not page_id:
+        raise RuntimeError(
+            "Facebook Page ID is not configured."
+        )
+
+    return page_id
+
+def get_token_expiry_from_meta(access_token: str):
+    """
+    Ask Meta's Debug Token endpoint for the token's
+    actual expiration timestamp.
+    """
+
+    app_access_token = f"{META_APP_ID}|{META_APP_SECRET}"
+
+    response = requests.get(
+        "https://graph.facebook.com/v25.0/debug_token",
+        params={
+            "input_token": access_token,
+            "access_token": app_access_token,
+        },
+    )
+
+    debug_data = response.json()
+
+    print("========== DEBUG FACEBOOK TOKEN ==========")
+    print({
+        "is_valid": debug_data.get("data", {}).get("is_valid"),
+        "app_id": debug_data.get("data", {}).get("app_id"),
+        "expires_at": debug_data.get("data", {}).get("expires_at"),
+        "data_access_expires_at": debug_data.get("data", {}).get("data_access_expires_at"),
+    })
+
+    if response.status_code != 200:
+        print("⚠️ Failed to debug Facebook access token.")
+        return None
+
+    data = debug_data.get("data", {})
+    expires_at_timestamp = data.get("expires_at")
+
+    if not expires_at_timestamp:
+        print("⚠️ Meta did not provide an expires_at value.")
+        return None
+
+    expires_at = datetime.fromtimestamp(
+        expires_at_timestamp,
+        tz=timezone.utc,
+    ).isoformat()
+
+    print("Facebook user token expires at:", expires_at)
+
+    update_env(
+        "USER_TOKEN_EXPIRES_AT",
+        expires_at,
+    )
+
+    return expires_at
 
 def handle_callback(code: str, state: str):
     """
@@ -79,7 +164,10 @@ def handle_callback(code: str, state: str):
     short_data = response.json()
 
     print("========== SHORT-LIVED TOKEN ==========")
-    print(short_data)
+    print({
+        "token_received": "access_token" in short_data,
+        "expires_in": short_data.get("expires_in"),
+    })
 
     if "access_token" not in short_data:
         return {
@@ -90,7 +178,6 @@ def handle_callback(code: str, state: str):
     short_token = short_data["access_token"]
 
     print("Short-lived token acquired!")
-    print(short_token[:30])
 
     # --------------------------------------------------
     # Step 2: Exchange for long-lived token
@@ -110,7 +197,11 @@ def handle_callback(code: str, state: str):
     long_data = long_response.json()
 
     print("========== LONG-LIVED TOKEN ==========")
-    print(long_data)
+    print({
+        "token_received": "access_token" in long_data,
+        "expires_in": long_data.get("expires_in"),
+        "token_type": long_data.get("token_type"),
+    })
 
     if "access_token" not in long_data:
         return {
@@ -120,25 +211,10 @@ def handle_callback(code: str, state: str):
 
     long_token = long_data["access_token"]
 
-    expires_in = long_data.get("expires_in")
+    # Meta may not return expires_in in the token exchange response.
+    # Ask the Debug Token endpoint for the actual expiration timestamp.
 
-    expires_at = None
-
-    if expires_in:
-        expires_at = (
-            datetime.now(timezone.utc)
-            + timedelta(seconds=expires_in)
-        ).isoformat()
-
-        update_env(
-            "ACCESS_TOKEN_EXPIRES_AT",
-            expires_at,
-        )
-
-        print(
-            "Facebook user token expires at:",
-            expires_at
-        )
+    expires_at = get_token_expiry_from_meta(long_token)
 
     # --------------------------------------------------
     # Step 3: Get Page information
@@ -173,57 +249,188 @@ def handle_callback(code: str, state: str):
         "page_token_received": True,
     }
 
-def get_facebook_token_expiry():
+def validate_facebook_token():
     """
-    Read the Facebook access token expiration timestamp
-    from the .env file.
+    Validate the current Facebook Page access token with Meta.
+    Returns the token debug information.
     """
 
-    expires_at = os.getenv("ACCESS_TOKEN_EXPIRES_AT")
+    token = os.getenv("ACCESS_TOKEN")
 
-    if not expires_at:
-        print(
-            "⚠️ Facebook token expiry unknown. "
-            "Re-authentication may be required."
-        )
-        return None
+    if not token:
+        return {
+            "valid": False,
+            "message": "No Facebook Page access token is configured."
+        }
+
+    app_access_token = f"{META_APP_ID}|{META_APP_SECRET}"
+
+    response = requests.get(
+        "https://graph.facebook.com/v25.0/debug_token",
+        params={
+            "input_token": token,
+            "access_token": app_access_token,
+        },
+    )
 
     try:
-        return datetime.fromisoformat(expires_at)
-    except ValueError:
-        print(
-            "⚠️ Invalid Facebook token expiry timestamp."
-        )
-        return None
+        data = response.json()
+    except Exception:
+        return {
+            "valid": False,
+            "message": "Invalid response from Meta."
+        }
+
+    debug_data = data.get("data", {})
+
+    return {
+        "valid": debug_data.get("is_valid", False),
+        "app_id": debug_data.get("app_id"),
+        "type": debug_data.get("type"),
+        "expires_at": debug_data.get("expires_at"),
+        "data_access_expires_at": debug_data.get(
+            "data_access_expires_at"
+        ),
+    }
+
+#def get_facebook_token_expiry():
+#    """
+#    Read the Facebook access token expiration timestamp
+#    from the .env file.
+#    """
+#
+#    expires_at = os.getenv("ACCESS_TOKEN_EXPIRES_AT")
+#
+#    if not expires_at:
+#        print(
+#            "⚠️ Facebook token expiry unknown. "
+#            "Re-authentication may be required."
+#        )
+#        return None
+#
+#    try:
+#        expiry = datetime.fromisoformat(expires_at)
+#
+#        # Make sure the datetime is timezone-aware
+#        if expiry.tzinfo is None:
+#            expiry = expiry.replace(tzinfo=timezone.utc)
+#
+#        return expiry
+#
+#    except ValueError:
+#        print(
+#            "⚠️ Invalid Facebook token expiry timestamp."
+#        )
+#        return None
+
+
+def get_facebook_token_status():
+    """
+    Return the current Facebook Page access token status.
+    """
+
+    token_info = validate_facebook_token()
+
+    if not token_info["valid"]:
+        return {
+            "status": "invalid",
+            "expires_at": token_info.get("expires_at"),
+            "days_remaining": None,
+            "message": "Facebook Page access token is invalid. Re-authentication is required.",
+        }
+
+    expires_at = token_info.get("expires_at")
+
+    # Meta may not provide an explicit expiry timestamp
+    if not expires_at:
+        return {
+            "status": "healthy",
+            "expires_at": None,
+            "days_remaining": None,
+            "message": "Facebook Page access token is valid. Meta did not provide an explicit expiry date.",
+        }
+
+    expiry = datetime.fromtimestamp(
+        expires_at,
+        tz=timezone.utc,
+    )
+
+    now = datetime.now(timezone.utc)
+    remaining = expiry - now
+    days_remaining = remaining.total_seconds() / 86400
+
+    if remaining <= timedelta(0):
+        return {
+            "status": "expired",
+            "expires_at": expiry.isoformat(),
+            "days_remaining": 0,
+            "message": "Facebook Page access token has expired.",
+        }
+
+    if remaining <= timedelta(days=7):
+        return {
+            "status": "critical",
+            "expires_at": expiry.isoformat(),
+            "days_remaining": round(days_remaining, 2),
+            "message": "Facebook Page access token expires within 7 days.",
+        }
+
+    if remaining <= timedelta(days=30):
+        return {
+            "status": "approaching",
+            "expires_at": expiry.isoformat(),
+            "days_remaining": round(days_remaining, 2),
+            "message": "Facebook Page access token is approaching expiry.",
+        }
+
+    return {
+        "status": "healthy",
+        "expires_at": expiry.isoformat(),
+        "days_remaining": round(days_remaining, 2),
+        "message": "Facebook Page access token is healthy.",
+    }
 
 
 def ensure_facebook_token_valid():
     """
-    Check whether the Facebook access token is still valid.
+    Check whether the Facebook Page access token is still valid.
 
-    For now, this only checks and reports the expiry.
-    The actual renewal flow will be added next.
+    This function does NOT silently re-authenticate.
+    If the token is invalid, the user must go through
+    the Facebook login flow again.
     """
 
-    expiry = get_facebook_token_expiry()
+    status = get_facebook_token_status()
 
-    if expiry is None:
-        return os.getenv("ACCESS_TOKEN")
-
-    now = datetime.now(timezone.utc)
-    remaining = expiry - now
-
-    print(
-        f"Facebook token remaining: {remaining}"
-    )
-
-    if remaining <= timedelta(days=7):
+    if status["status"] == "invalid":
         print(
-            "⚠️ Facebook token approaching expiry. "
-            "Re-authentication/renewal required."
+            "❌ Facebook Page access token is invalid. "
+            "Re-authentication required."
         )
 
-    return os.getenv("ACCESS_TOKEN")
+    elif status["status"] == "healthy":
+        print(
+            "✅ Facebook Page access token is healthy."
+        )
+
+    elif status["status"] == "approaching":
+        print(
+            "⚠️ Facebook Page access token approaching expiry."
+        )
+
+    elif status["status"] == "critical":
+        print(
+            "🚨 Facebook Page access token expires soon. "
+            "Re-authentication recommended."
+        )
+
+    elif status["status"] == "expired":
+        print(
+            "❌ Facebook Page access token has expired. "
+            "Re-authentication required."
+        )
+
+    return get_current_access_token()
 
 
 def get_me():
@@ -232,7 +439,7 @@ def get_me():
         "https://graph.facebook.com/v25.0/me",
         params={
             "fields": "id,name",
-            "access_token": ACCESS_TOKEN,
+            "access_token": get_current_access_token(),
         },
     )
 
@@ -243,7 +450,7 @@ def get_pages():
     response = requests.get(
         "https://graph.facebook.com/v25.0/me/accounts",
         params={
-            "access_token": ACCESS_TOKEN,
+            "access_token": get_current_access_token(),
         },
     )
 
@@ -252,10 +459,10 @@ def get_pages():
 def get_page():
 
     response = requests.get(
-        f"{GRAPH_BASE_URL}/{PAGE_ID}",
+        f"{GRAPH_BASE_URL}/{get_current_page_id()}",
         params={
             "fields": "id,name",
-            "access_token": ACCESS_TOKEN,
+            "access_token": get_current_access_token(),
         },
     )
 
@@ -264,10 +471,10 @@ def get_page():
 def create_post(message: str):
 
     response = requests.post(
-        f"{GRAPH_BASE_URL}/{PAGE_ID}/feed",
+        f"{GRAPH_BASE_URL}/{get_current_page_id()}/feed",
         data={
             "message": message,
-            "access_token": ACCESS_TOKEN,
+            "access_token": get_current_access_token(),
         },
     )
 
@@ -277,10 +484,10 @@ def create_post(message: str):
 def get_posts():
 
     response = requests.get(
-        f"{GRAPH_BASE_URL}/{PAGE_ID}/posts",
+        f"{GRAPH_BASE_URL}/{get_current_page_id()}/posts",
         params={
             "fields": "id,message,created_time",
-            "access_token": ACCESS_TOKEN,
+            "access_token": get_current_access_token(),
         },
     )
 
@@ -292,7 +499,7 @@ def get_comments(post_id: str):
         f"{GRAPH_BASE_URL}/{post_id}/comments",
         params={
             "fields": "id,message,from,created_time",
-            "access_token": ACCESS_TOKEN,
+            "access_token": get_current_access_token(),
         },
     )
 
@@ -304,7 +511,7 @@ def reply_to_comment(comment_id: str, message: str):
         f"{GRAPH_BASE_URL}/{comment_id}/comments",
         data={
             "message": message,
-            "access_token": ACCESS_TOKEN,
+            "access_token": get_current_access_token(),
         },
     )
 
@@ -316,7 +523,7 @@ def send_message(recipient_id: str, message: str):
     using Meta's unified messaging endpoint.
     """
 
-    url = f"{GRAPH_BASE_URL}/{PAGE_ID}/messages"
+    url = f"{GRAPH_BASE_URL}/{get_current_page_id()}/messages"
 
     payload = {
         "recipient": {
@@ -330,7 +537,7 @@ def send_message(recipient_id: str, message: str):
     response = requests.post(
         url,
         params={
-            "access_token": ACCESS_TOKEN,
+            "access_token": get_current_access_token(),
         },
         json=payload,
     )

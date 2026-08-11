@@ -4,6 +4,8 @@ from fastapi.responses import RedirectResponse
 from services.facebook_service import (
     get_login_url,
     handle_callback,
+    get_facebook_token_status,
+    get_me,
 )
 
 router = APIRouter(
@@ -27,3 +29,11 @@ def callback(
 ):
 
     return handle_callback(code, state)
+
+@router.get("/token-status")
+def facebook_token_status():
+    return get_facebook_token_status()
+
+@router.get("/me")
+def facebook_me():
+    return get_me()
